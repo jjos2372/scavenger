@@ -18,6 +18,7 @@ pub struct Meta {
     pub account_id: u64,
     pub start_nonce: u64,
     pub nonces: u64,
+    pub nskip: usize,
     pub name: String,
 }
 
@@ -104,16 +105,23 @@ impl Plot {
 
         let plot_file = path.file_name().unwrap().to_str().unwrap();
         let parts: Vec<&str> = plot_file.split('_').collect();
-        if parts.len() != 3 {
+        if parts.len() < 3 || parts.len() > 4 {
             return Err(From::from("plot file has wrong format"));
         }
 
         let account_id = parts[0].parse::<u64>()?;
         let start_nonce = parts[1].parse::<u64>()?;
         let nonces = parts[2].parse::<u64>()?;
+        let nskip;
+        if parts.len() == 3 {
+            nskip = 1;
+        }
+        else {
+            nskip = parts[3].parse::<usize>()?;
+        }
 
         let size = fs::metadata(path)?.len();
-        let exp_size = nonces * NONCE_SIZE;
+        let exp_size = nonces * NONCE_SIZE / (nskip as u64);
         if size != exp_size as u64 {
             return Err(From::from(format!(
                 "expected plot size {} but got {}",
@@ -143,6 +151,7 @@ impl Plot {
                 account_id,
                 start_nonce,
                 nonces,
+                nskip,
                 name: plot_file_name,
             },
             fh,
@@ -155,9 +164,13 @@ impl Plot {
     }
 
     pub fn prepare(&mut self, scoop: u32) -> io::Result<u64> {
+        let dont_have_it = scoop % (self.meta.nskip as u32);
+        if dont_have_it != 0 {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "don't have this scoop"));
+        }
         self.read_offset = 0;
         let nonces = self.meta.nonces;
-        let mut seek_addr = u64::from(scoop) * nonces as u64 * SCOOP_SIZE;
+        let mut seek_addr = u64::from(scoop) * nonces as u64 * SCOOP_SIZE / (self.meta.nskip as u64);
 
         // reopening file handles
         if !self.use_direct_io {
