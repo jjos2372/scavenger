@@ -210,7 +210,7 @@ impl Plot {
         let offset = self.read_offset;
         let nonces = self.meta.nonces;
         let seek_addr =
-            SeekFrom::Start(offset as u64 + u64::from(scoop) * nonces as u64 * SCOOP_SIZE);
+            SeekFrom::Start(offset as u64 + u64::from(scoop) * nonces as u64 * SCOOP_SIZE / (self.meta.nskip as u64));
         if !self.dummy {
             self.fh.seek(seek_addr)?;
             self.fh.read_exact(&mut bs[0..bytes_to_read])?;
