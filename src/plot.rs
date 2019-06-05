@@ -18,7 +18,7 @@ pub struct Meta {
     pub account_id: u64,
     pub start_nonce: u64,
     pub nonces: u64,
-    pub nskip: usize,
+    pub njump: usize,
     pub name: String,
 }
 
@@ -112,16 +112,13 @@ impl Plot {
         let account_id = parts[0].parse::<u64>()?;
         let start_nonce = parts[1].parse::<u64>()?;
         let nonces = parts[2].parse::<u64>()?;
-        let nskip;
-        if parts.len() == 3 {
-            nskip = 1;
-        }
-        else {
-            nskip = parts[3].parse::<usize>()?;
+        let mut njump = 1;
+        if parts.len() > 3 {
+            njump = parts[3].parse::<usize>()?;
         }
 
         let size = fs::metadata(path)?.len();
-        let exp_size = nonces * NONCE_SIZE / (nskip as u64);
+        let exp_size = nonces / (njump as u64) * NONCE_SIZE;
         if size != exp_size as u64 {
             return Err(From::from(format!(
                 "expected plot size {} but got {}",
@@ -151,7 +148,7 @@ impl Plot {
                 account_id,
                 start_nonce,
                 nonces,
-                nskip,
+                njump,
                 name: plot_file_name,
             },
             fh,
@@ -164,13 +161,13 @@ impl Plot {
     }
 
     pub fn prepare(&mut self, scoop: u32) -> io::Result<u64> {
-        let dont_have_it = scoop % (self.meta.nskip as u32);
+        let dont_have_it = scoop % (self.meta.njump as u32);
         if dont_have_it != 0 {
             return Err(std::io::Error::new(std::io::ErrorKind::Other, "don't have this scoop"));
         }
         self.read_offset = 0;
         let nonces = self.meta.nonces;
-        let mut seek_addr = u64::from(scoop) * nonces as u64 * SCOOP_SIZE / (self.meta.nskip as u64);
+        let mut seek_addr = u64::from(scoop)/(self.meta.njump as u64) * nonces as u64 * SCOOP_SIZE;
 
         // reopening file handles
         if !self.use_direct_io {
@@ -210,7 +207,7 @@ impl Plot {
         let offset = self.read_offset;
         let nonces = self.meta.nonces;
         let seek_addr =
-            SeekFrom::Start(offset as u64 + u64::from(scoop) * nonces as u64 * SCOOP_SIZE / (self.meta.nskip as u64));
+            SeekFrom::Start(offset as u64 + u64::from(scoop)/(self.meta.njump as u64) * nonces as u64 * SCOOP_SIZE);
         if !self.dummy {
             self.fh.seek(seek_addr)?;
             self.fh.read_exact(&mut bs[0..bytes_to_read])?;
