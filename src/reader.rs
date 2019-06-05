@@ -192,10 +192,18 @@ impl Reader {
             'outer: for (i_p, p) in plots.iter().enumerate() {
                 let mut p = p.lock().unwrap();
                 if let Err(e) = p.prepare(scoop) {
-                    error!(
-                        "reader: error preparing {} for reading: {} -> skip one round",
-                        p.meta.name, e
-                    );
+                    if e.kind() == std::io::ErrorKind::Other {
+                        info!(
+                            "{}: {} -> skip one round",
+                            p.meta.name, e
+                        );
+                    }
+                    else {
+                        error!(
+                            "reader: error preparing {} for reading: {} -> skip one round",
+                            p.meta.name, e
+                        );
+                    }
                     continue 'outer;
                 }
 
